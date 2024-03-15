@@ -47,7 +47,8 @@ inline float getTemperature();
 void myLoop();
 inline void lcdDisplay(float temp, int _nowSpeed)
 inline void resetFanSpeed();
-inline void resetButton();
+void resetButton();
+void setButton(int number);
 inline void setFanSpeed(int number);
 
 BLYNK_WRITE(V0) {
@@ -57,7 +58,10 @@ BLYNK_WRITE(V0) {
 //when click fan speed number 1
 BLYNK_WRITE(V2) {
   int val = param.asInt();
-  if(!fanMode) {  //when manual mode
+  if(fanMode) {   //auto mode
+    resetButton();
+    setButton(nowSpeed);
+  }else {         //manual mode
     nowSpeed = val ? 1 : 0;
   }
 }
@@ -65,14 +69,20 @@ BLYNK_WRITE(V2) {
 //when click fan speed number 2
 BLYNK_WRITE(V3) {
   int val = param.asInt();
-  if(!fanMode) {  //when manual mode
+  if(fanMode) {   //auto mode
+    resetButton();
+    setButton(nowSpeed);
+  }else {         //manual mode
     nowSpeed = val ? 2 : 0;
   }
 }
 //when click fan speed number 3
 BLYNK_WRITE(V4) {
   int val = param.asInt();
-  if(!fanMode) {  //when manual mode
+  if(fanMode) {   //auto mode
+    resetButton();
+    setButton(nowSpeed);
+  }else {         //manual mode
     nowSpeed = val ? 3 : 0;
   }
 }
@@ -157,10 +167,26 @@ inline void resetFanSpeed() {
   Serial.println("Reset fan speed");
 }
 
-inline void resetButton() {
+void resetButton() {
   Blynk.virtualWrite(V2, 0);
   Blynk.virtualWrite(V3, 0);
   Blynk.virtualWrite(V4, 0);
+}
+
+void setButton(int number) {
+  switch (number) {
+    case 1:
+      Blynk.virtualWrite(V2, 1);
+      break;
+    case 2:
+      Blynk.virtualWrite(V3, 1);
+      break;
+    case 3:
+      Blynk.virtualWrite(V4, 1);
+      break;
+    default:
+      break;
+  }
 }
 
 inline void setFanSpeed(int number) {
@@ -170,20 +196,7 @@ inline void setFanSpeed(int number) {
     resetButton();
     if(number >= 1 && number <= 3) {
       digitalWrite(relayPin[number - 1], 0);
-      switch (number)
-      {
-      case 1:
-        Blynk.virtualWrite(V2, 1);
-        break;
-      case 2:
-        Blynk.virtualWrite(V3, 1);
-        break;
-      case 3:
-        Blynk.virtualWrite(V4, 1);
-        break;
-      default:
-        break;
-      }
+      setButton(number)
     }
   }
   Serial.print("Speed now is : ");
