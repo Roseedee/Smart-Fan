@@ -16,9 +16,9 @@
 
 //define PIN use on ESP8266 only
 #define DHTPIN 0  //D3
-#define D5 14     //Fan Speed number 1
-#define D6 12     //Fan Speed number 2
-#define D7 13     //Fan Speed number 3
+#define D5 14     //Fan Speed number 1  (D5)
+#define D6 12     //Fan Speed number 2  (D6)
+#define D7 13     //Fan Speed number 3  (D7)
 
 #define DHTTYPE DHT11
 // #define DHTTYPE DHT22
@@ -32,8 +32,9 @@ LiquidCrystal_I2C lcd(0x3f, 16, 2);
 //Timer
 BlynkTimer timer;
 
-int nowSpeed = 0;
-int fanMode = 0;   //0 = manual mode
+int nowSpeed = 0;   //fan speed number
+int fanMode = 0;    //0 = manual mode
+int lastSpeed = 0;  //for optimize
 
 int relayPin[] = {
   D5, //D5
@@ -42,88 +43,59 @@ int relayPin[] = {
 };
 
 //function declearation
-float getTemperature();
-void myFunction();
-void resetSpeed();
-void setFanSpeed(int number);
+inline float getTemperature();
+void myLoop();
+inline void lcdDisplay(float temp, int _nowSpeed)
+inline void resetFanSpeed();
+inline void resetButton();
+inline void setFanSpeed(int number);
 
 BLYNK_WRITE(V0) {
-  int val = param.asInt();
-  if (val == 1) {
-    fanMode = 1;
-    Blynk.virtualWrite(V2, 0);
-    Blynk.virtualWrite(V3, 0);
-    Blynk.virtualWrite(V4, 0);
-    Serial.println("Auto Mode");
-  }else {
-    fanMode = 0;
-  }
+  fanMode = param.asInt();
 }
 
 //when click fan speed number 1
 BLYNK_WRITE(V2) {
   int val = param.asInt();
-  if(!fanMode) {
-    if (val == 1) {
-      setFanSpeed(1);
-      Blynk.virtualWrite(V3, 0);
-      Blynk.virtualWrite(V4, 0);
-      Serial.println("Number 1");
-    }else {
-      resetSpeed();
-    }
-  }else {
-
+  if(!fanMode) {  //when manual mode
+    nowSpeed = val ? 1 : 0;
   }
 }
 
 //when click fan speed number 2
 BLYNK_WRITE(V3) {
   int val = param.asInt();
-  if(!fanMode) {
-    if (val == 1) {
-      setFanSpeed(2);
-      Blynk.virtualWrite(V2, 0);
-      Blynk.virtualWrite(V4, 0);
-      Serial.println("Number 2");
-    }else {
-      resetSpeed();
-    }
+  if(!fanMode) {  //when manual mode
+    nowSpeed = val ? 2 : 0;
   }
 }
 //when click fan speed number 3
 BLYNK_WRITE(V4) {
   int val = param.asInt();
-  if(!fanMode) {
-    if (val == 1) {
-      setFanSpeed(3);
-      Blynk.virtualWrite(V2, 0);
-      Blynk.virtualWrite(V3, 0);
-      Serial.println("Number 3");
-    }else {
-      resetSpeed();
-    }
+  if(!fanMode) {  //when manual mode
+    nowSpeed = val ? 3 : 0;
   }
 }
 
 void setup()
 {
   lcd.begin();
-
   lcd.backlight();
   lcd.cursor();
 
   dht.begin();
 
   Serial.begin(115200);
+
   delay(100);
+
   for(int i = 0; i < 3; i++) {
     pinMode(relayPin[i], OUTPUT);
     digitalWrite(relayPin[i], 1);
   }
 
   BlynkEdgent.begin();
-  timer.setInterval(1000L, myFunction);
+  timer.setInterval(1000L, myLoop);
 }
 
 void loop() {
@@ -131,32 +103,31 @@ void loop() {
   timer.run();
 }
 
-void myFunction() {
+void myLoop() {
   float temp = getTemperature();
   if(temp == -1) {
     Serial.println(F("Failed to read from DHT sensor!"));
-    // Blynk.virtualWrite(V1, 0);
-    // return;
   }
   Serial.println(temp);
   Blynk.virtualWrite(V1, temp);
 
-
   if(fanMode) {     //when auto mode
     if(temp <= 30.00) {
-      resetSpeed();
+      nowSpeed = 0;
     }else if(temp > 30 && temp <= 33){
-      setFanSpeed(1);
-      Blynk.virtualWrite(V2, 1);
+      nowSpeed = 1;
     }else if(temp > 33 && temp <= 35) {
-      setFanSpeed(2);
-      Blynk.virtualWrite(V3, 1);
+      nowSpeed = 2;
     }else {
-      setFanSpeed(3);
-      Blynk.virtualWrite(V4, 1);
+      nowSpeed = 3;
     }
   }
 
+  setFanSpeed(nowSpeed);
+  lcdDisplay(temp, nowSpeed)
+}
+
+inline void lcdDisplay(float temp, int _nowSpeed) {
   lcd.clear();
   lcd.cursor();
   lcd.print("Temp : ");
@@ -165,10 +136,9 @@ void myFunction() {
   lcd.setCursor(0, 1);
   lcd.print("Speed Now is : ");
   lcd.print(nowSpeed);
-
 }
 
-float getTemperature() {
+inline float getTemperature() {
   //temperature get values
   float h = dht.readHumidity();
   float t = dht.readTemperature();
@@ -177,24 +147,45 @@ float getTemperature() {
   if (isnan(h) || isnan(t) || isnan(f)) {
     return -1;
   }
-
   return dht.computeHeatIndex(t, h, false);
 }
 
-void resetSpeed() {
+inline void resetFanSpeed() {
   for(int i = 0; i < 3; i++) {
     digitalWrite(relayPin[i], 1);
   }
   Serial.println("Reset fan speed");
 }
 
-void setFanSpeed(int number) {
-  nowSpeed = number;
-  resetSpeed();
-  if(number >= 1 && number <= 3) {
-    digitalWrite(relayPin[number - 1], 0);
-  }
-  Serial.print("now is number : ");
-  Serial.println(number);
-} 
+inline void resetButton() {
+  Blynk.virtualWrite(V2, 0);
+  Blynk.virtualWrite(V3, 0);
+  Blynk.virtualWrite(V4, 0);
+}
 
+inline void setFanSpeed(int number) {
+  if(lastSpeed != number) {
+    lastSpeed = number;
+    resetFanSpeed();
+    resetButton();
+    if(number >= 1 && number <= 3) {
+      digitalWrite(relayPin[number - 1], 0);
+      switch (number)
+      {
+      case 1:
+        Blynk.virtualWrite(V2, 1);
+        break;
+      case 2:
+        Blynk.virtualWrite(V3, 1);
+        break;
+      case 3:
+        Blynk.virtualWrite(V4, 1);
+        break;
+      default:
+        break;
+      }
+    }
+  }
+  Serial.print("Speed now is : ");
+  Serial.println(number);
+}
