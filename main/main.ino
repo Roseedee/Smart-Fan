@@ -15,7 +15,7 @@
 #include <LiquidCrystal_I2C.h>
 
 //define PIN use on ESP8266 only
-#define DHTPIN 0  //D3
+#define DHTPIN 2  //D4
 #define D5 14     //Fan Speed number 1  (D5)
 #define D6 12     //Fan Speed number 2  (D6)
 #define D7 13     //Fan Speed number 3  (D7)
@@ -45,11 +45,11 @@ int relayPin[] = {
 //function declearation
 inline float getTemperature();
 void myLoop();
-inline void lcdDisplay(float temp, int _nowSpeed)
+inline void lcdDisplay(float temp, int _nowSpeed);
 inline void resetFanSpeed();
 void resetButton();
 void setButton(int number);
-inline void setFanSpeed(int number);
+void setFanSpeed(int number);
 
 BLYNK_WRITE(V0) {
   fanMode = param.asInt();
@@ -63,6 +63,8 @@ BLYNK_WRITE(V2) {
     setButton(nowSpeed);
   }else {         //manual mode
     nowSpeed = val ? 1 : 0;
+    Blynk.virtualWrite(V3, 0);
+    Blynk.virtualWrite(V4, 0);
   }
 }
 
@@ -74,6 +76,8 @@ BLYNK_WRITE(V3) {
     setButton(nowSpeed);
   }else {         //manual mode
     nowSpeed = val ? 2 : 0;
+    Blynk.virtualWrite(V2, 0);
+    Blynk.virtualWrite(V4, 0);
   }
 }
 //when click fan speed number 3
@@ -84,6 +88,8 @@ BLYNK_WRITE(V4) {
     setButton(nowSpeed);
   }else {         //manual mode
     nowSpeed = val ? 3 : 0;
+    Blynk.virtualWrite(V2, 0);
+    Blynk.virtualWrite(V3, 0);
   }
 }
 
@@ -131,10 +137,12 @@ void myLoop() {
     }else {
       nowSpeed = 3;
     }
+    setFanSpeed(nowSpeed, true);
+  }else {
+    setFanSpeed(nowSpeed, false);
   }
 
-  setFanSpeed(nowSpeed);
-  lcdDisplay(temp, nowSpeed)
+  lcdDisplay(temp, nowSpeed);
 }
 
 inline void lcdDisplay(float temp, int _nowSpeed) {
@@ -189,14 +197,16 @@ void setButton(int number) {
   }
 }
 
-inline void setFanSpeed(int number) {
+void setFanSpeed(int number, bool clearButton) {
   if(lastSpeed != number) {
     lastSpeed = number;
+    if(clearButton) {
+      resetButton();
+    }
     resetFanSpeed();
-    resetButton();
     if(number >= 1 && number <= 3) {
       digitalWrite(relayPin[number - 1], 0);
-      setButton(number)
+      setButton(number);
     }
   }
   Serial.print("Speed now is : ");
